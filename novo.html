@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-bs-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SISTEMA DE GESTÃO PROFISSIONAL</title>
+    
+    <link rel="icon" type="image/x-icon" href="favicon.jpg">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
+    <style>
+        :root {
+            --cor-primaria: #007bff; 
+            --cor-botao: #0069d9;
+            --cor-escuro: #004a99;
+        }
+
+        #loginPage {
+            height: 100vh; width: 100%; position: fixed; top: 0; left: 0; z-index: 9999;
+            background-color: #f8f9fa; background-image: url('fundo.png'); 
+            background-repeat: no-repeat; background-position: center; background-size: cover;
+            display: flex; align-items: stretch;
+        }
+
+        .login-sidebar {
+            width: 450px; background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(10px);
+            display: flex; flex-direction: column; justify-content: center; padding: 3rem;
+            box-shadow: 10px 0 30px rgba(0,0,0,0.1); z-index: 2;
+        }
+
+        .bg-primary { background-color: var(--cor-primaria) !important; }
+        .navbar-brand, .nav-link-header, .navbar .btn-link, .navbar .dropdown-toggle { color: #ffffff !important; }
+        
+        #navFoto { border: 2px solid #000 !important; }
+
+        .btn-primary { background-color: var(--cor-botao) !important; border-color: var(--cor-botao) !important; }
+        .nav-pills .nav-link.active { background-color: var(--cor-botao) !important; }
+
+        body { background-color: #f0f2f5; }
+        #mainSystem { display: none; }
+        
+        .chat-container { display: flex; height: 600px; border-radius: 15px; overflow: hidden; background: #fff; border: 1px solid #ddd; }
+        .chat-sidebar { width: 280px; border-right: 1px solid #ddd; background: #f8f9fa; }
+        .user-item { padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; }
+        #chatBox { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; background: #fff; }
+        .msg { padding: 10px 15px; border-radius: 15px; max-width: 75%; position: relative; }
+        .msg-out { background: var(--cor-botao); color: white; align-self: flex-end; }
+        .msg-in { background: #f0f0f0; align-self: flex-start; }
+        .del-msg { font-size: 10px; color: red; cursor: pointer; display: block; margin-top: 2px; }
+        
+        .admin-only { display: none; }
+        .table-responsive-custom { overflow-x: auto; white-space: nowrap; }
+    </style>
+</head>
+<body>
+
+    <div id="loginPage">
+        <div class="login-sidebar">
+            <div class="text-center mb-5">
+                <i class="fas fa-cogs fa-4x text-primary mb-3"></i>
+                <h2 class="fw-bold">Gestão Local</h2>
+            </div>
+            <form id="loginForm">
+                <div class="mb-3"><label class="form-label fw-bold">Login</label><input type="text" class="form-control" id="userInput" required></div>
+                <div class="mb-4"><label class="form-label fw-bold">Senha</label><input type="password" class="form-control" id="passInput" required></div>
+                <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">ENTRAR</button>
+                <div id="loginError" class="text-danger mt-3 text-center" style="display:none;">Login ou senha inválidos!</div>
+            </form>
+        </div>
+    </div>
+
+    <div id="mainSystem">
+        <nav class="navbar navbar-expand-lg bg-primary shadow-sm mb-4">
+            <div class="container-fluid">
+                <span class="navbar-brand fw-bold"><i class="fas fa-cogs me-2"></i>SISTEMA DE GESTÃO</span>
+                <div class="dropdown ms-auto">
+                    <button class="btn btn-link dropdown-toggle text-decoration-none" data-bs-toggle="dropdown">
+                        <img src="" id="navFoto" width="35" height="35" class="rounded-circle me-2">
+                        <span id="navNome"></span>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalPerfil">Meu Perfil</a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#modalAlterarSenha">Alterar Senha</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger fw-bold" href="#" onclick="location.reload()">Sair</a></li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container-fluid">
+            <div class="row">
+                <div class="col-md-2">
+                    <div class="nav flex-column nav-pills bg-white p-3 rounded shadow-sm">
+                        <button class="nav-link active mb-2" data-bs-toggle="pill" data-bs-target="#tabPessoas" onclick="renderP()">Pessoas</button>
+                        <button class="nav-link mb-2" data-bs-toggle="pill" data-bs-target="#tabVeiculos" onclick="renderV()">Veículos</button>
+                        <button class="nav-link mb-2" id="abaAdmin" data-bs-toggle="pill" data-bs-target="#tabUsuarios" onclick="renderU()">Usuários</button>
+                        <button class="nav-link" data-bs-toggle="pill" data-bs-target="#tabChat" onclick="carregarListaChat()">Chat</button>
+                    </div>
+                </div>
+
+                <div class="col-md-10">
+                    <div class="tab-content">
+                        
+                        <div class="tab-pane fade show active" id="tabPessoas">
+                            <div class="card shadow-sm border-0">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0 fw-bold text-primary">REGISTRO DE PESSOAS</h5>
+                                    <div>
+                                        <button class="btn btn-outline-primary btn-sm me-2" data-bs-toggle="collapse" data-bs-target="#funilPessoas">Funil</button>
+                                        <button class="btn btn-primary btn-sm admin-only" data-bs-toggle="modal" data-bs-target="#modalAddPessoa">Novo Cadastro</button>
+                                    </div>
+                                </div>
+                                <div class="collapse" id="funilPessoas">
+                                    <div class="card-body bg-light row g-2">
+                                        <div class="col-md-3"><input type="text" id="filCracha" class="form-control" placeholder="Crachá..." onkeyup="filtrarPessoas()"></div>
+                                        <div class="col-md-4"><input type="text" id="filNome" class="form-control" placeholder="Nome..." onkeyup="filtrarPessoas()"></div>
+                                        <div class="col-md-3"><input type="text" id="filDepto" class="form-control" placeholder="Depto..." onkeyup="filtrarPessoas()"></div>
+                                        <div class="col-md-2"><button class="btn btn-secondary w-100" onclick="limparFunilP()">Limpar</button></div>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-hover align-middle" id="tabelaP">
+                                        <thead><tr><th>LISTA</th><th>CRACHÁ</th><th>NOME</th><th>ADMISSÃO</th><th>FUNÇÃO</th><th>DEPTO</th><th>SETOR</th><th>OBS</th><th class="admin-only">AÇÃO</th></tr></thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tabVeiculos">
+                            <div class="card shadow-sm border-0">
+                                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0 fw-bold text-primary">VEÍCULOS</h5>
+                                    <div>
+                                        <button class="btn btn-outline-primary btn-sm me-2" data-bs-toggle="collapse" data-bs-target="#funilVeiculos">Funil</button>
+                                        <button class="btn btn-primary btn-sm admin-only" onclick="abrirModalVeiculo()">Novo Veículo</button>
+                                    </div>
+                                </div>
+                                <div class="collapse" id="funilVeiculos">
+                                    <div class="card-body bg-light row g-2">
+                                        <div class="col-md-2"><input type="text" id="filFrota" class="form-control" placeholder="Frota..." onkeyup="filtrarVeiculos()"></div>
+                                        <div class="col-md-2"><input type="text" id="filPlaca" class="form-control" placeholder="Placa..." onkeyup="filtrarVeiculos()"></div>
+                                        <div class="col-md-3"><input type="text" id="filMarca" class="form-control" placeholder="Marca/Modelo..." onkeyup="filtrarVeiculos()"></div>
+                                        <div class="col-md-3">
+                                            <select id="filStatus" class="form-select" onchange="filtrarVeiculos()">
+                                                <option value="">Status (Todos)</option>
+                                                <option value="Ativo">Ativo</option>
+                                                <option value="Inativo">Inativo</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-2"><button class="btn btn-secondary w-100" onclick="limparFunilV()">Limpar</button></div>
+                                    </div>
+                                </div>
+                                <div class="table-responsive-custom">
+                                    <table class="table table-hover align-middle" id="tabelaV">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>FROTA</th><th>PLACA</th><th>MARCA</th><th>MODELO</th><th>ANO</th>
+                                                <th>CHASSI</th><th>RENAVAM</th><th>STATUS</th><th>CC</th><th>DESC. CC</th><th>KM ATUAL</th>
+                                                <th class="admin-only">AÇÃO</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tabUsuarios">
+                            <div class="card border-0 shadow-sm">
+                                <div class="card-header bg-dark text-white d-flex justify-content-between">
+                                    <span>USUÁRIOS DO SISTEMA</span>
+                                    <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#modalAddUser">Novo Usuário</button>
+                                </div>
+                                <table class="table align-middle">
+                                    <thead><tr><th>ID</th><th>NOME</th><th>LOGIN</th><th>CARGO</th><th>SETOR</th><th>AÇÃO</th></tr></thead>
+                                    <tbody id="listaU"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="tab-pane fade" id="tabChat">
+                            <div class="chat-container">
+                                <div class="chat-sidebar" id="listaChatContatos"></div>
+                                <div class="chat-main d-flex flex-column w-100">
+                                    <div class="p-3 bg-light border-bottom fw-bold" id="headerChat">Selecione uma conversa</div>
+                                    <div id="chatBox"></div>
+                                    <div class="p-3 border-top bg-white">
+                                        <div class="input-group">
+                                            <input type="text" id="msgInput" class="form-control" placeholder="Mensagem..." onkeypress="if(event.key==='Enter')enviarMsg()">
+                                            <button class="btn btn-primary" onclick="enviarMsg()">Enviar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalPerfil" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content text-center p-4">
+                <h5 class="fw-bold text-primary mb-3">Meu Perfil</h5>
+                <img src="" id="previewP" width="100" height="100" class="rounded-circle mb-3 mx-auto border" style="border: 2px solid #000 !important;">
+                <input type="text" id="perfilNome" class="form-control mb-3" placeholder="Nome">
+                <button class="btn btn-primary w-100 fw-bold" onclick="atualizarPerfil()">Salvar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalAlterarSenha" tabindex="-1">
+        <div class="modal-dialog modal-sm">
+            <div class="modal-content p-4">
+                <h5 class="text-center text-danger fw-bold mb-3">Alterar Minha Senha</h5>
+                <input type="password" id="novaSenhaM" class="form-control mb-3" placeholder="Nova Senha">
+                <button class="btn btn-primary w-100" onclick="alterarSenhaManual()">Atualizar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalAddPessoa" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5>Novo Cadastro de Pessoa</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="fPessoa" class="row g-3">
+                        <div class="col-md-3"><label>Lista</label><input type="text" name="lista" class="form-control"></div>
+                        <div class="col-md-3"><label>Crachá</label><input type="text" name="cracha" class="form-control"></div>
+                        <div class="col-md-6"><label>Nome</label><input type="text" name="nome" class="form-control"></div>
+                        <div class="col-md-4"><label>Admissão</label><input type="date" name="admissao" class="form-control"></div>
+                        <div class="col-md-4"><label>Função</label><input type="text" name="funcao" class="form-control"></div>
+                        <div class="col-md-4"><label>Depto</label><input type="text" name="depto" class="form-control"></div>
+                        <div class="col-md-4"><label>Setor</label><input type="text" name="setor" class="form-control"></div>
+                        <div class="col-md-8"><label>Obs</label><input type="text" name="obs" class="form-control"></div>
+                    </form>
+                </div>
+                <div class="modal-footer"><button class="btn btn-primary" onclick="salvarPessoa()">Cadastrar</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalV" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header"><h5 id="v_titulo">Veículo</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+                <div class="modal-body">
+                    <form id="formV" class="row g-3">
+                        <input type="hidden" id="v_id_banco">
+                        <div class="col-md-4"><label>Frota</label><input type="text" id="v_frota" class="form-control"></div>
+                        <div class="col-md-4"><label>Placa</label><input type="text" id="v_placa" class="form-control"></div>
+                        <div class="col-md-4"><label>Marca</label><input type="text" id="v_marca" class="form-control"></div>
+                        <div class="col-md-4"><label>Modelo</label><input type="text" id="v_modelo" class="form-control"></div>
+                        <div class="col-md-2"><label>Ano</label><input type="text" id="v_ano" class="form-control"></div>
+                        <div class="col-md-6"><label>Chassi</label><input type="text" id="v_chassi" class="form-control"></div>
+                        <div class="col-md-4"><label>Renavam</label><input type="text" id="v_renavam" class="form-control"></div>
+                        <div class="col-md-4"><label>Status</label>
+                            <select id="v_status" class="form-select">
+                                <option value="Ativo">Ativo</option>
+                                <option value="Inativo">Inativo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4"><label>Centro de Custo (CC)</label><input type="text" id="v_cc" class="form-control"></div>
+                        <div class="col-md-8"><label>Descrição CC</label><input type="text" id="v_desccc" class="form-control"></div>
+                        <div class="col-md-4"><label>KM Atual</label><input type="number" id="v_km" class="form-control"></div>
+                    </form>
+                </div>
+                <div class="modal-footer"><button class="btn btn-primary" onclick="salvarVeiculo()">Salvar</button></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="modalAddUser" tabindex="-1">
+        <div class="modal-dialog"><div class="modal-content">
+            <div class="modal-header"><h5>Novo Usuário</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><form id="fUser" class="row g-3">
+                <div class="col-md-6"><label>Nome</label><input type="text" name="nome" class="form-control" required></div>
+                <div class="col-md-6"><label>Login</label><input type="text" name="login" class="form-control" required></div>
+                <div class="col-md-6"><label>Cargo</label>
+                    <select name="cargo" class="form-select">
+                        <option value="comum">Comum</option>
+                        <option value="administrador">Administrador</option>
+                    </select>
+                </div>
+                <div class="col-md-6"><label>Setor</label><input type="text" name="setor" class="form-control"></div>
+            </form></div>
+            <div class="modal-footer"><button class="btn btn-primary" onclick="salvarUser()">Cadastrar</button></div>
+        </div></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // --- CONFIGURAÇÃO SUPABASE ---
+        const SUPABASE_URL = 'https://qpfdpambqqamqvuyllcb.supabase.co';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFwZmRwYW1icXFhbXF2dXlsbGNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwODI5NzQsImV4cCI6MjA5MTY1ODk3NH0.XMhvfHKcEc9IYcVv51iVq9i8XY3aIy8vTPIs4e8uQDo';
+        const _supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        let currentUser = null;
+        let contatoAtivo = null;
+
+        // --- LOGIN ---
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const l = document.getElementById('userInput').value;
+            const s = document.getElementById('passInput').value;
+            
+            const { data: user, error } = await _supabase
+                .from('usuarios')
+                .select('*')
+                .eq('login', l)
+                .eq('senha', s)
+                .single();
+            
+            if(user) {
+                currentUser = user;
+                document.getElementById('loginPage').style.display = 'none';
+                document.getElementById('mainSystem').style.display = 'block';
+                aplicarPermissoes();
+                atualizarInterfaceUsuario();
+                renderP(); 
+            } else {
+                document.getElementById('loginError').style.display = 'block';
+            }
+        });
+
+        function aplicarPermissoes() {
+            const isAdm = (currentUser.cargo === 'criador' || currentUser.cargo === 'administrador');
+            document.querySelectorAll('.admin-only').forEach(b => b.style.display = isAdm ? 'inline-block' : 'none');
+            document.getElementById('abaAdmin').style.display = isAdm ? 'block' : 'none';
+        }
+
+        function atualizarInterfaceUsuario() {
+            document.getElementById('navNome').innerText = currentUser.nome;
+            document.getElementById('perfilNome').value = currentUser.nome;
+            const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentUser.nome)}&background=007bff&color=fff&bold=true`;
+            document.getElementById('navFoto').src = avatarUrl;
+            document.getElementById('previewP').src = avatarUrl;
+        }
+
+        // --- FUNÇÕES PESSOAS ---
+        async function renderP() {
+            const { data: pessoas } = await _supabase.from('pessoas').select('*').order('nome');
+            const isAdm = (currentUser.cargo === 'criador' || currentUser.cargo === 'administrador');
+            document.querySelector('#tabelaP tbody').innerHTML = pessoas.map(p => `
+                <tr><td>${p.lista||''}</td><td>${p.cracha||''}</td><td>${p.nome||''}</td><td>${p.admissao||''}</td><td>${p.funcao||''}</td><td>${p.depto||''}</td><td>${p.setor||''}</td><td>${p.obs||''}</td>
+                <td class="${isAdm ? '' : 'd-none'}">
+                    <button class="btn btn-sm text-danger" onclick="excluirP('${p.id}')"><i class="fas fa-trash"></i></button>
+                </td></tr>
+            `).join('');
+        }
+
+        async function salvarPessoa() {
+            const f = new FormData(document.getElementById('fPessoa'));
+            const p = Object.fromEntries(f);
+            await _supabase.from('pessoas').insert([p]);
+            renderP();
+            bootstrap.Modal.getInstance(document.getElementById('modalAddPessoa')).hide();
+            document.getElementById('fPessoa').reset();
+        }
+
+        async function excluirP(id) { 
+            if(confirm("Excluir definitivamente?")) { 
+                await _supabase.from('pessoas').delete().eq('id', id);
+                renderP(); 
+            } 
+        }
+
+        // --- FUNÇÕES VEÍCULOS ---
+        async function renderV() {
+            const { data: veiculos } = await _supabase.from('veiculos').select('*');
+            const isAdm = (currentUser.cargo === 'criador' || currentUser.cargo === 'administrador');
+            document.querySelector('#tabelaV tbody').innerHTML = veiculos.map(v => `
+                <tr>
+                    <td>${v.frota||''}</td><td>${v.placa||''}</td><td>${v.marca||''}</td><td>${v.modelo||''}</td><td>${v.ano||''}</td>
+                    <td>${v.chassi||''}</td><td>${v.renavam||''}</td>
+                    <td><span class="badge ${v.status=='Ativo'?'bg-success':'bg-danger'}">${v.status||''}</span></td>
+                    <td>${v.cc||''}</td><td>${v.desccc||''}</td><td>${v.km||'0'}</td>
+                    <td class="${isAdm ? '' : 'd-none'}">
+                        <button class="btn btn-sm btn-info text-white" onclick="editarVeiculoBanco('${v.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn btn-sm btn-danger" onclick="excluirV('${v.id}')"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function abrirModalVeiculo() {
+            document.getElementById('formV').reset();
+            document.getElementById('v_id_banco').value = "";
+            document.getElementById('v_titulo').innerText = "Novo Veículo";
+            new bootstrap.Modal(document.getElementById('modalV')).show();
+        }
+
+        async function editarVeiculoBanco(id) {
+            const { data: v } = await _supabase.from('veiculos').select('*').eq('id', id).single();
+            document.getElementById('v_id_banco').value = v.id;
+            document.getElementById('v_frota').value = v.frota;
+            document.getElementById('v_placa').value = v.placa;
+            document.getElementById('v_status').value = v.status;
+            document.getElementById('v_km').value = v.km;
+            // ... (preencher outros campos)
+            document.getElementById('v_titulo').innerText = "Editar Veículo";
+            new bootstrap.Modal(document.getElementById('modalV')).show();
+        }
+
+        async function salvarVeiculo() {
+            const id = document.getElementById('v_id_banco').value;
+            const obj = {
+                frota: document.getElementById('v_frota').value,
+                placa: document.getElementById('v_placa').value,
+                status: document.getElementById('v_status').value,
+                km: document.getElementById('v_km').value
+            };
+            if(!id) await _supabase.from('veiculos').insert([obj]);
+            else await _supabase.from('veiculos').update(obj).eq('id', id);
+            
+            renderV();
+            bootstrap.Modal.getInstance(document.getElementById('modalV')).hide();
+        }
+
+        async function excluirV(id) { 
+            if(confirm("Excluir veículo?")) { 
+                await _supabase.from('veiculos').delete().eq('id', id);
+                renderV(); 
+            } 
+        }
+
+        // --- USUÁRIOS ---
+        async function renderU() {
+            const { data: users } = await _supabase.from('usuarios').select('*');
+            document.getElementById('listaU').innerHTML = users.map(u => `
+                <tr><td>#</td><td>${u.nome}</td><td>${u.login}</td><td>${u.cargo}</td><td>${u.setor}</td>
+                <td><button class="btn btn-sm text-danger" onclick="excluirU('${u.id}')"><i class="fas fa-trash"></i></button></td></tr>
+            `).join('');
+        }
+
+        async function salvarUser() {
+            const f = new FormData(document.getElementById('fUser'));
+            let u = Object.fromEntries(f);
+            u.senha = "mudar123";
+            await _supabase.from('usuarios').insert([u]);
+            renderU();
+            bootstrap.Modal.getInstance(document.getElementById('modalAddUser')).hide();
+        }
+    </script>
+</body>
+</html>
